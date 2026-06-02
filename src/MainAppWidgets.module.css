@@ -1,0 +1,112 @@
+.progression {
+    color: rgb(168, 147, 228);
+    font-weight: bold;
+}
+
+.useful {
+    color: rgb(98, 122, 198);
+    font-weight: bold;
+}
+
+.progression.useful {
+    color: rgb(255, 223, 0);
+}
+
+.filler {
+    color: rgb(6, 217, 217);
+    font-weight: bold;
+}
+
+.trap {
+    color: rgb(211, 113, 102);
+    font-weight: bold;
+}
+
+.location {
+    color: rgb(0, 255, 127);
+}
+
+.player {
+    color: rgb(150, 150, 110);
+    font-weight: bold;
+}
+
+/* ValidJSONColorType */
+.bold {
+    font-weight: bold;
+}
+
+.underline {
+    text-decoration: underline;
+}
+
+.black {
+    color: black;
+    background-color: #969696;
+}
+
+.red {
+    color: #F44336;
+}
+
+.green {
+    color: rgb(0, 255, 127);
+    background-color: rgba(0, 0, 0, 0.25);
+}
+
+.yellow {
+    color: rgb(255, 255, 127);
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.blue {
+    color: rgb(63, 64, 255);
+}
+
+.magenta {
+    color: rgb(255, 127, 255);
+}
+
+.cyan {
+    color: rgb(127, 255, 255);
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.white {
+    color: white;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.black_bg {
+    background-color: black;
+    color: #ccc;
+}
+
+.red_bg {
+    background-color: rgb(255, 64, 63);
+}
+
+.green_bg {
+    background-color: rgb(0, 255, 127);
+}
+
+.yellow_bg {
+    background-color: rgb(255, 255, 127);
+}
+
+.blue_bg {
+    background-color: rgb(63, 64, 255);
+    color: #ccc;
+}
+
+.magenta_bg {
+    background-color: rgb(255, 127, 255);
+}
+
+.cyan_bg {
+    background-color: rgb(127, 255, 255);
+}
+
+.white_bg {
+    background-color: white;
+}
