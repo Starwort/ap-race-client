@@ -224,7 +224,7 @@ export default function MainAppWidgets(props: {themeColour: "light" | "dark";}) 
             </IconButton>
             <Box sx={{flexGrow: 1, minWidth: "8px"}} />
         </Box>
-        <ChatCard chatLog={chatLog()} sendMessage={msg => {
+        <ChatCard themeColour={props.themeColour} chatLog={chatLog()} sendMessage={msg => {
             let i = 0;
             for (const [connection, _] of connections()) {
                 i++;

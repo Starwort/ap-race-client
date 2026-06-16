@@ -7,6 +7,7 @@ import styles from "./MainAppWidgets.module.css";
 export default function ChatCard(props: {
     chatLog: MessageNode[][];
     sendMessage: (msg: string) => void;
+    themeColour: "light" | "dark";
 }) {
     let chatBoxRef!: HTMLDivElement;
     createEffect(() => {
