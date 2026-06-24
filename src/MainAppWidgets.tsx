@@ -5,6 +5,7 @@ import {createSignal, For, Setter, Show, Signal} from "solid-js";
 import ChatCard from "./ChatCard";
 
 interface ConnectionData {
+    identifier: string;
     server: string;
     slotName: string;
     password: string;
@@ -17,12 +18,13 @@ interface ConnectionData {
 
 declare module "archipelago.js" {
     interface Client {
-        connectionNo: number;
+        connectionId: string;
     }
 }
 
-function newConnection(writeMessage: (message: MessageNode[]) => void): ConnectionData {
+function newConnection(identifier: string, writeMessage: (message: MessageNode[]) => void): ConnectionData {
     const client = new Client();
+    client.connectionId = identifier;
     const timeFormatter = new Intl.DateTimeFormat(
         "en-GB",
         {
@@ -37,26 +39,27 @@ function newConnection(writeMessage: (message: MessageNode[]) => void): Connecti
     );
     client.messages.on("message", (_, message) => writeMessage([
         new TextualMessageNode(client, {type: "text", text: `[${timeFormatter.format(new Date())}]`}),
-        new TextualMessageNode(client, {type: "text", text: `[Connection ${client.connectionNo + 1}]`}),
+        new TextualMessageNode(client, {type: "text", text: ` [${client.connectionId}] `}),
         ...message
     ]));
     client.deathLink.on("deathReceived", (source, time, cause) => {
         if (cause) {
             writeMessage([
                 new TextualMessageNode(client, {type: "text", text: `[${timeFormatter.format(time)}]`}),
-                new TextualMessageNode(client, {type: "text", text: `[Connection ${client.connectionNo + 1}]`}),
+                new TextualMessageNode(client, {type: "text", text: ` [${client.connectionId}] `}),
                 new ColorMessageNode(client, {type: "color", text: cause, color: "red"}),
             ]);
         } else {
             writeMessage([
                 new TextualMessageNode(client, {type: "text", text: `[${timeFormatter.format(time)}]`}),
-                new TextualMessageNode(client, {type: "text", text: `[Connection ${client.connectionNo + 1}]`}),
+                new TextualMessageNode(client, {type: "text", text: ` [${client.connectionId}] `}),
                 new PlayerMessageNode(client, {type: "player_name", text: source}),
                 new ColorMessageNode(client, {type: "color", text: " died!", color: "red"}),
             ]);
         }
     });
     return {
+        identifier,
         server: "",
         slotName: "",
         password: "",
@@ -75,16 +78,24 @@ function ConnectionCard(props: {
     setConnection: Setter<ConnectionData>;
     setConnections: Setter<Signal<ConnectionData>[]>;
 }) {
-    props.connection.client.connectionNo = props.index;
     return <Card variant="elevation">
         <CardContent sx={{
             display: "flex",
             flexDirection: "column",
             gap: 1
         }}>
-            <Typography variant="subtitle1">
-                {`Connection ${props.index + 1}`}
-            </Typography>
+            <TextField
+                variant="outlined"
+                size="small"
+                label="Connection identifier"
+                value={props.connection.identifier}
+                onChange={event => {
+                    props.setConnection(connection => ({
+                        ...connection,
+                        identifier: event.target.value
+                    })).client.connectionId = event.target.value;
+                }}
+            />
             <TextField
                 variant="outlined"
                 disabled={props.connection.isConnected}
@@ -194,7 +205,8 @@ function ConnectionCard(props: {
 export default function MainAppWidgets(props: {themeColour: "light" | "dark";}) {
     const [chatLog, setChatLog] = createSignal<MessageNode[][]>([]);
     const writeMessage = (message: MessageNode[]) => setChatLog(chatLog => [...chatLog, message]);
-    const [connections, setConnections] = createSignal([createSignal(newConnection(writeMessage))]);
+    const [connections, setConnections] = createSignal([createSignal(newConnection("Connection 1", writeMessage))]);
+    const [connectionId, setConnectionId] = createSignal(1);
     return <Box component="main" sx={{display: "flex", flexDirection: "column", flexGrow: 1, gap: 2, marginY: 2}}>
         <Box sx={{
             display: "flex",
@@ -217,7 +229,7 @@ export default function MainAppWidgets(props: {themeColour: "light" | "dark";}) 
             <IconButton onClick={() => {
                 setConnections(connections => [
                     ...connections,
-                    createSignal(newConnection(writeMessage)),
+                    createSignal(newConnection(`Connection ${setConnectionId(id => ++id)}`, writeMessage)),
                 ]);
             }}>
                 <Add />
@@ -225,16 +237,14 @@ export default function MainAppWidgets(props: {themeColour: "light" | "dark";}) 
             <Box sx={{flexGrow: 1, minWidth: "8px"}} />
         </Box>
         <ChatCard themeColour={props.themeColour} chatLog={chatLog()} sendMessage={msg => {
-            let i = 0;
             for (const [connection, _] of connections()) {
-                i++;
                 const data = connection();
                 if (data.isConnected) {
-                    (i => data.client.messages.say(msg).catch(failed => {
-                        writeMessage([{type: "text", text: `Connection ${i} failed to send: ${failed}`} as any]);
-                    }))(i);
+                    data.client.messages.say(msg).catch(failed => {
+                        writeMessage([{type: "text", text: `${data.identifier} failed to send: ${failed}`} as any]);
+                    });
                 } else {
-                    writeMessage([{type: "text", text: `Connection ${i} failed to send: is not connected`} as any]);
+                    writeMessage([{type: "text", text: `${data.identifier} failed to send: is not connected`} as any]);
                 }
             }
         }} />
