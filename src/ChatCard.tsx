@@ -1,8 +1,9 @@
 import {ContentCopy, DeleteForever, Download, Send} from "@suid/icons-material";
 import {Box, Button, ButtonGroup, Card, CardActions, CardContent, FormControlLabel, Switch, TextField, Typography} from "@suid/material";
-import {Item, MessageNode, Player} from "archipelago.js";
+import {MessageNode} from "archipelago.js";
 import {createEffect, createSignal, For} from "solid-js";
 import styles from "./MainAppWidgets.module.css";
+import {APEvent, dumpArchipelagoObjects} from "./APEvents";
 
 function downloadString(text: string, fileType: string, fileName: string) {
     var blob = new Blob([text], {type: fileType});
@@ -18,43 +19,10 @@ function downloadString(text: string, fileType: string, fileName: string) {
     setTimeout(function () {URL.revokeObjectURL(a.href);}, 1500);
 }
 
-function dumpArchipelagoObjects(obj: Object): Object {
-    if (obj instanceof Player) {
-        return {
-            slot: obj.slot,
-            name: obj.name,
-            team: obj.team,
-            alias: obj.alias,
-        };
-    } else if (obj instanceof Item) {
-        return {
-            receiver: obj.receiver,
-            sender: obj.sender,
-            item: obj.name,
-            id: obj.id,
-            game: obj.game,
-            flags: {
-                bits: obj.flags,
-                progression: obj.progression,
-                useful: obj.useful,
-                trap: obj.trap,
-                filler: obj.filler,
-            },
-            location: {
-                name: obj.locationName,
-                id: obj.locationId,
-                game: obj.locationGame,
-            }
-        };
-    } else {
-        return obj;
-    }
-}
-
 export default function ChatCard(props: {
     chatLog: [MessageNode[], string?][];
-    chatBySource: {[key: string]: MessageNode[][];};
-    resetChatBySource: () => void;
+    apEventsBySource: {[key: string]: APEvent[];};
+    resetApEventsBySource: () => void;
     sendMessage: (msg: string) => void;
     themeColour: "light" | "dark";
 }) {
@@ -66,8 +34,8 @@ export default function ChatCard(props: {
             chatBoxRef.lastElementChild?.scrollIntoView();
         }
     });
-    const dumpChat = () => JSON.stringify(
-        props.chatBySource,
+    const dumpAPEvents = () => JSON.stringify(
+        props.apEventsBySource,
         (k, v) => k == 'client' ? undefined : dumpArchipelagoObjects(v)
     );
     const [currentChatMsg, setCurrentChatMsg] = createSignal("");
@@ -91,14 +59,14 @@ export default function ChatCard(props: {
                         JSON:
                     </Typography>
                     <ButtonGroup>
-                        <Button title="Clear JSON data" onClick={props.resetChatBySource} color="error">
+                        <Button title="Clear JSON data" onClick={props.resetApEventsBySource} color="error">
                             <DeleteForever />
                         </Button>
                         <Button
                             title="Copy as JSON"
                             onClick={() => {
                                 navigator.clipboard.writeText(
-                                    dumpChat()
+                                    dumpAPEvents()
                                 );
                             }}
                             variant="contained"
@@ -109,7 +77,7 @@ export default function ChatCard(props: {
                             title="Download as JSON"
                             onClick={() => {
                                 downloadString(
-                                    dumpChat(),
+                                    dumpAPEvents(),
                                     "application/json",
                                     "chat.json",
                                 );

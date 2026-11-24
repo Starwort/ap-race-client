@@ -1,8 +1,9 @@
 import {Add} from "@suid/icons-material";
 import {Box, Button, Card, CardActions, CardContent, FormControlLabel, IconButton, Switch, TextField, Typography} from "@suid/material";
-import {Client, ColorMessageNode, MessageNode, PlayerMessageNode, TextualMessageNode} from "archipelago.js";
-import {createSignal, For, Setter, Show, Signal} from "solid-js";
+import {Client, ColorMessageNode, Item, MessageNode, Player, PlayerMessageNode, TextualMessageNode} from "archipelago.js";
+import {createSignal, onCleanup, For, Setter, Show, Signal} from "solid-js";
 import ChatCard from "./ChatCard";
+import {APEvent, parseAPEventFromChat, parseCountdownEvent, parseGoalEvent, parseItemSentEvent, parseServerChatEvent} from "./APEvents";
 
 interface ConnectionData {
     identifier: string;
@@ -24,7 +25,10 @@ declare module "archipelago.js" {
     }
 }
 
-function newConnection(identifier: string, writeMessage: (message: MessageNode[], connectionId: string, colour?: string) => void): ConnectionData {
+type MessageHandler = (message: MessageNode[], connectionId: string, colour?: string) => void;
+type APEventHandler = (event: APEvent, connectionId: string) => void;
+
+function newConnection(identifier: string, writeMessage: MessageHandler, handleAPEvent: APEventHandler): ConnectionData {
     const client = new Client();
     client.connectionId = identifier;
     client.connectionColour = "white";
@@ -40,12 +44,38 @@ function newConnection(identifier: string, writeMessage: (message: MessageNode[]
             hour12: false,
         },
     );
-    client.messages.on("message", (_, message) => writeMessage([
-        new TextualMessageNode(client, {type: "text", text: `[${timeFormatter.format(new Date())}]`}),
-        new TextualMessageNode(client, {type: "text", text: ` [${client.connectionId}] `}),
-        ...message
-    ], client.connectionId, client.connectionColour));
-    client.deathLink.on("deathReceived", (source, time, cause) => {
+    // The ItemManager only sends events for the slot you're connected to, so it doesn't work for our case.
+    // client.items.on("itemsReceived", (...args) => console.log("itemsReceived", args));
+    // Same for itemHinted in MessageManager. Have to scrape the raw messages instead.
+    // client.messages.on("itemHinted", (...args) => console.log("itemHinted", args));
+    client.messages.on("goaled", (_text: string, player: Player, _nodes: MessageNode[]) =>
+        handleAPEvent(parseGoalEvent(_text, player, _nodes), client.connectionId));
+
+    client.messages.on("itemSent", (_text: string, item: Item, _nodes: MessageNode[]) =>
+        handleAPEvent(parseItemSentEvent(_text, item, _nodes), client.connectionId));
+
+    client.messages.on("chat", (text: string, player: Player, _nodes: MessageNode[]) => {
+        const apEvent = parseAPEventFromChat(text, player);
+        if (apEvent) {
+            handleAPEvent(apEvent, client.connectionId);
+        }
+    });
+
+    client.messages.on("countdown", (text: string, value: number, _nodes: MessageNode[]) =>
+        handleAPEvent(parseCountdownEvent(text, value), client.connectionId));
+
+    client.messages.on("serverChat", (message: string, _nodes: MessageNode[]) =>
+        handleAPEvent(parseServerChatEvent(message), client.connectionId));
+
+    client.messages.on("message", (_, message: MessageNode[]) => {
+        writeMessage([
+            new TextualMessageNode(client, {type: "text", text: `[${timeFormatter.format(new Date())}]`}),
+            new TextualMessageNode(client, {type: "text", text: ` [${client.connectionId}] `}),
+            ...message
+        ], client.connectionId, client.connectionColour);
+    });
+
+    client.deathLink.on("deathReceived", (source: string, time: number, cause?: string) => {
         if (cause) {
             writeMessage([
                 new TextualMessageNode(client, {type: "text", text: `[${timeFormatter.format(time)}]`}),
@@ -61,6 +91,7 @@ function newConnection(identifier: string, writeMessage: (message: MessageNode[]
             ], client.connectionId, client.connectionColour);
         }
     });
+
     return {
         identifier,
         colour: "white",
@@ -217,18 +248,28 @@ function ConnectionCard(props: {
 
 export default function MainAppWidgets(props: {themeColour: "light" | "dark";}) {
     const [chatLog, setChatLog] = createSignal<[MessageNode[], string?][]>([]);
-    const [chatBySource, setChatBySource] = createSignal<{[key: string]: MessageNode[][];}>({});
+    const [apEventsBySource, setApEventsBySource] = createSignal<{[key: string]: APEvent[];}>({});
     const writeMessage = (message: MessageNode[], connectionId: string, colour?: string) => {
         setChatLog(chatLog => [...chatLog, [message, colour]]);
-        setChatBySource(
-            chats => ({
-                ...chats,
-                [connectionId]: [...(chats[connectionId] ?? []), message]
-            })
-        );
     };
-    const [connections, setConnections] = createSignal([createSignal(newConnection("Connection 1", writeMessage))]);
+    const handleAPEvent = (event: APEvent, connectionId: string) => {
+        setApEventsBySource(
+            events => ({
+                ...events,
+                [connectionId]: [...(events[connectionId] ?? []), event]
+            })
+        )
+    };
+    const [connections, setConnections] = createSignal([createSignal(newConnection("Connection 1", writeMessage, handleAPEvent))]);
     const [, setConnectionId] = createSignal(1);
+
+    // TODO: Replace with onSettled if updating solidjs to 2.0
+    onCleanup(() => {
+        for (const [connection, _] of connections()) {
+            connection().client.socket.disconnect();
+        }
+    });
+
     return <Box component="main" sx={{display: "flex", flexDirection: "column", flexGrow: 1, gap: 2, marginY: 2}}>
         <Box sx={{
             display: "flex",
@@ -251,7 +292,7 @@ export default function MainAppWidgets(props: {themeColour: "light" | "dark";}) 
             <IconButton onClick={() => {
                 setConnections(connections => [
                     ...connections,
-                    createSignal(newConnection(`Connection ${setConnectionId(id => ++id)}`, writeMessage)),
+                    createSignal(newConnection(`Connection ${setConnectionId(id => ++id)}`, writeMessage, handleAPEvent)),
                 ]);
             }}>
                 <Add />
@@ -261,8 +302,8 @@ export default function MainAppWidgets(props: {themeColour: "light" | "dark";}) 
         <ChatCard
             themeColour={props.themeColour}
             chatLog={chatLog()}
-            chatBySource={chatBySource()}
-            resetChatBySource={() => setChatBySource({})}
+            apEventsBySource={apEventsBySource()}
+            resetApEventsBySource={() => setApEventsBySource({})}
             sendMessage={msg => {
                 for (const [connection, _] of connections()) {
                     const data = connection();
